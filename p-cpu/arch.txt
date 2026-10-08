@@ -1,0 +1,54 @@
+### 1. Registers
+    1.a. Control Registers:
+        -- gp (Gate Pointer) - code 0xFFF               : Points at what gate we should execute.
+                                                        : If set value exceed p-cpu gate number (?? invalid location) processor halts.
+                                                        : Set to gate number if panic or halt
+        -- ip (Instruction Pointer) -- code 0xFF0       : Virtual instruction pointer to feed implemented fetch with instruction from Ram
+        -- vrc (Virtualized Ram Cache) -- code 0xFB0    : Used to fetch Ram values
+                                       -- code 0xFB1    : Fetches two values
+        -- vra (Ram Address) -- code 0xFCF              : The pointer form which vrc is read from Ram.
+                                                        : These low level asm registers can be abstracted to normal address operations.
+    
+    1.b. Value registers (32-bit):
+        -- Plain registers: maa, mab, mac, mad, mba, mbb, mbc, mbd, mca, mcb, mcc, mcd, mda, mdb (0x1F1 - 0x1FF)
+        -- Arithmetic registers: 
+            acr (Arithmetic carry) - code 0x200         : Carry for when aritmetic operations exceed register size
+            zr (Zero Register) - code 0x201             : Zero register if result is zero
+            ofr (Overfow Register) - code 0x202         : Overflow register if carry is nonzero (i.e 1 / 0)
+            sgr (Sign Register) - code 0x203            : Sign register if arithmetic result is negative
+
+    1.c. Special Registers:
+        -- dad (Dummy Register) -- code 0xDAD           : Used to indicate we would not like to touch any register
+
+### 2. Memory Layout
+
+Ram is 32 bit addresable and each value holds 32 bit values.
+Critical Ke Sector  (0x0000 - 0x4000)       : A custom kernel written by the user can hold some critical values here, in a convinient memory sector.
+                                            : Also CPU will dump a structure that can be read and used for various events. (struct defined later, see: KeHwIrpEvent)
+                                            : Can also be used for polling (see: KeHwUnpointedExec, KeClockPolledMemory) 
+p-CPU setup         (0x4000 - 0xffff)       : This is where the gates get the routing instructions from.
+
+
+### 3. Gates, gate codes and gate language:
+    3.1. Instruction structure: 
+        GGAAAlBBBlRRRlccceeettttttttttt     : Here a large letter represents a full hex letter (0 to F) and a small letter a binary digit (0 or 1)
+                                            : The order in computer memory is reveresed (IMPORTANT if you are writing your own compiler or intend on changing these values)
+
+        GG -- the 2 digit gate code, reffered to in 3.2
+        AAA, BBB, RRR -- sources A, B and the result of applying the gate to A and B
+        l -- the flag that dictates what A, B, R represent as source and sync (i.e register / lane)
+        ccc -- clear the registers (1b for A, 10b for B, 100b for C, to clear multiple &)
+        eee -- enabled if lane (0b111 if we dont care, else enable if lane with provided code dictates as such)
+           -- this also ties into the fact that we can use the gate iff the wanted lane is equal with the gate tag TTT
+        t11 -- the gate tag that is useful for picking a gate in decoding like stages
+
+    3.2. Gate Digit Codes:
+
+    3.3. Timings:
+        -- The gate normally takes ????? clock cycles.
+        -- If all data is on the lanes, 1 clock tick will be used to move it to the internal registers, and it will be on the output automatically.
+        -- If we request data form the registers, we will load lanes with priority, then A inl, B inl, each adding +1 clock tick
+        -- If we store enable the result on the register, we will add +1 tick
+        -- Note: While loading both A and B from registers is possible, we require that the lane for A and B be different upon loading
+
+
